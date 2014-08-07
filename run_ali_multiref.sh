@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#This simple script will convert relion mrcs particles to spider,
+#run multireference alignment (apsh.fed) and convert aligned particles back to mrcs in folder aligned/
+
 source ~/eman21.rc
 
 mkdir aligned
