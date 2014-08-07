@@ -1,0 +1,187 @@
+; SOURCE: spider/docs/techs/recon/newprogs/apsh.spi 
+;          New                                            Nov 2004 ArDean Leith  
+;          Added alignment option & stack op              Nov 2006 ArDean Leith
+;          Var naming                                     Jan 2010 ArDean Leith
+;	         3D projection added, AP SH -> AP SHC		        Aug 2014 Grigory Sharov
+;
+; PURPOSE: Simple multi-reference alignment of an image series. 
+;          First, 3D volume is projected with specified angular step.
+;          Sample images are aligned with reference projections via
+;          shifts (translations) and rotations. 
+;          Works in SPIDER version 21.02+ (NORM, SYS operations)
+;
+;------------ Edit next Input parameters ------------------------------ 
+
+[doalign] = 1   ; If >0 apply alignment to images
+[incore-yn] = 1 ; Use in-core files
+
+[pxsz]    = 3.42  ; Pixel size (we don't believe in header values)
+[ang_step]= 15  ; Angular step THETA for volume projections
+[obj_radius]= 67 ; Object radius in pixels for projections calculation
+[range]   = 6 	; Translation search range (must be divisible by step size)
+[step]    = 1   ; Translation step size
+[range2]  = 3 	; Translation search range for AP REF
+[diam]    = 465 ; Diameter of object (Angstroms) for alignment search. (EDIT as needed!) Used to find last alignment radius.
+[r1]      = 3	  ; First rotation alignment ring, only radii > this will be analyzed
+[r2]      = 0   ; Last rotation ring (If zero, compute from object diameter)
+
+; ----------------- Input files --------------------------------------------
+
+[3dvol]             = '3dvol'           ; Input 3D volume
+
+[unaligned_images]  = 'particles@'   		; Unaligned particles name template
+
+; ----------------- Output files -------------------------------------------------
+
+[ref_images]        = 'prjrot@'  	      ; Reference images   
+
+[ref_images_angles] = 'angs'            ; Reference images angles doc. file
+
+[align_parameters] = 'alidoc_apshc'    	; Alignment parameters doc. file for AP SHC
+
+[align_parameters2] = 'alidoc_apref'   	; Alignment parameters doc. file for AP REF (final)
+
+[aligned_images]   = 'ali@'      	      ; Rotated, shifted (aligned) particles (if requested)
+
+; ----------------- END BATCH HEADER -------------------------------------------
+
+   MD
+   TR OFF                             ; Decrease results file output
+   MD
+   VB OFF                             ; Decrease results file output
+   MD
+   () OFF                             ; No () necessary in loops
+
+   IF ([r2] .LE. 0) THEN              ; Compute alignment radius from object size  
+ 
+      FI H [winsz]                    ; Get window size (pixels) from this file 
+      [ref_images]                    ; Unaligned particles name template       (input)
+      NY                              ; Number of rows per slice    
+
+      [r2] = INT([diam]/(2.0*[pxsz])) ; Compute object radius (pixels) for last alignment ring
+      [ring-sh] = [r2] + [range]      ; Compute last ring + translation range
+      [maxrad]  = INT([winsz]/2) - 2  ; Compute max. radius of object within window
+
+      IF ([ring-sh] .GE. [maxrad]) THEN
+         [r2] = [maxrad] - [range] - 1 ; Reduce radius of last alignment ring to fit window
+      ENDIF
+   ENDIF
+
+   DE                           ; Delete existing alignment parameter output doc. files.
+   [align_parameters]
+   DE                           ; Delete existing alignment parameter output doc. files.
+   [align_parameters2]
+
+   FI H [numpart]               ; Get number of particles 
+   [unaligned_images]           ; Unaligned particles name template       (input)
+   MAXIM                        ; Max. image number in stack      
+
+   SYS 
+   echo "Creating angular file.."
+
+   VO EA [numproj]   	    ; Sets [numproj] to number of reference projections
+   [ang_step]         		; Theta angular step
+   0, 90              		; Theta range, 90 is for use with 'Check Mirrored Positions'
+   0, 359.9           		; Phi range
+   [ref_images_angles]    ; Reference angles doc file       (output)
+
+   SYS
+   echo "Projecting 3D input volume.."
+
+   PJ 3F                        ; Projection operation
+   [3dvol]                      ; 3D volume             	   (input)
+   [obj_radius]                 ; Radius of object
+   1-[numproj]                  ; Ref. angles used    
+   [ref_images_angles]          ; Ref. angles doc file             (input)
+   [ref_images]*****            ; Template for ref. projections    (output) 
+
+   IF ( [incore-yn] == 0 ) THEN
+     ; Use on-disk image stack
+     [temp_in_images] = '[unaligned_images]'
+     [temp_out_images] = 'ali_temp@'
+
+   ELSE
+     ; Load input images into incore image stack
+     [temp_in_images] = '_1@'
+     [temp_out_images] = '_1@'
+
+     CP                          ; Load input images into incore stack
+       [unaligned_images]	       ; Image stack                           (input)
+       [temp_in_images]          ; Incore stack                    (output)
+       [numpart]                 ; Stack size
+   ENDIF
+
+   SYS
+   echo "Finding alignment for: {******[numpart]} particles.."
+
+   AP SHC                       ; Align sample images using multiple references  
+   [ref_images]*****            ; References image name template          (input)
+   1-[numproj]                  ; Number of references
+   [range],[step]               ; Search range, step size  
+   [r1],[r2],1                  ; First and last ring, skip. For large images change 'skip' to 2 or 3 to decrease memory    
+   [ref_images_angles]          ; Ref. angles doc file                    (input)
+   [temp_in_images]*****        ; Unaligned particles name template       (input)
+   1-[numpart]
+   *                            ; No unaligned images align. doc file  
+   0.0,0.0                      ; No restriction on angular proj. search 
+   Y,N,N                        ; Check mirrored positions, shift and rotate input, denoise
+   [align_parameters]           ; Alignment angles doc. file              (output)
+
+   AP REF                       ; Poorer search than 'AP SH' but 4-5x faster
+   [ref_images]*****            ; Reference image name template     (input)
+   1-[numproj]                  ; Number of references
+   [range2]                     ; Shift search range
+   [r1],[r2]                    ; First, last radial ring, & skip
+   *                            ; No Ref. angles file              
+   [ref_images_angles]          ; Reference images angles doc file
+   [not-exist]			            ; Non-existent reference rings file
+   [temp_in_images]*****        ; Template for normalized aligned AP SH images     (input)
+   1-[numpart]                  ; Number of particles
+   [align_parameters]           ; No alignment parameter doc file   (input)
+   0.0,0.0                      ; Angular search restriction
+   Y,Y                          ; Check mir projections, align first
+   [align_parameters2]          ; Alignment parameter doc file      (output)
+
+   DE
+   _1@
+
+   IF ([doalign] .GT. 0) THEN
+      ; Apply alignment parameters to unaligned images
+      ; Order in doc file: PHI,THETA,PSI, REF#,IMG#,  ROT,SX,SY
+
+      SYS
+      echo "Applying final alignment parameters.."
+
+      RT SF                     ; Rotate & shift whole stack operation
+      [unaligned_images]   	    ; Unaligned particles stack              (input)
+      [temp_out_images]         ; Aligned particles stack                (output)
+      [numpart]			            ; Number of particles
+      6,0,7,8                   ; Reg. numbers for angle, scale,& shifts
+      [align_parameters2]       ; Alignment angles doc. file             (input)
+
+      SYS
+      echo "Normalizing images to avoid interpolation errors.."
+
+      NORM
+      [temp_out_images]		; Aligned particles stack                (input)
+      *				            ; No mask
+      [aligned_images]		; Aligned particles stack normalized     (output)
+      N				            ; No flat-field ramp applied
+
+      DE			            ; Remove temp file
+      [temp_out_images] 
+
+      DE
+      [unaligned_images]
+
+   ENDIF
+
+   IF ([doalign] .GT. 0) THEN
+      SYS
+      echo "DONE! Your aligned particles are in file: [aligned_images]"
+   ELSE
+      SYS
+      echo "DONE! Your alignment file is: [align_parameters2]"
+   ENDIF
+   
+   EN D
