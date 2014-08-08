@@ -1,0 +1,100 @@
+; SOURCE: spider/docs/techs/recon/newprogs/make-params.spi 
+;
+; PURPOSE: Creates parameter file 
+;
+; USAGE:     spider fed/spi @make-params
+
+; Select appopriate angular step
+; Delta theta       Number of directions 
+;     15.0                84 
+;     10.0               195 
+;      5.0               799 
+;      2.5              3248 
+;      2.0              5088 
+;      1.5              9076 
+;      1.0             20489 
+
+; ----------- Registers ------------------------
+[doalign] = 1		; If >0 apply alignment to images
+[incore-yn] = 1		; Use in-core files
+[pxsz]       = 3.42	; Pixel size
+[ang_step]   = 15	; Angular step THETA for volume projections
+[obj_radius] = 67	; Object radius in pixels for projections calculation
+[range]   = 6		; Translation search range (must be divisible by step size)
+[step]    = 1		; Translation step size
+[range2]  = 3		; Translation search range for AP REF
+[diam]    = 465		; Diameter of object (Angstroms) for alignment search. (EDIT as needed!) Used to find last alignment radius.
+[r1]      = 3		; First rotation alignment ring, only radii > this will be analyzed
+[r2]      = 0		; Last rotation ring (If zero, compute from object diameter) 
+
+; ----------- Output files ---------------------
+
+[docfile] = 'params'
+
+; -------------- END BATCH HEADER --------------------------
+
+; Delete existing output files
+DE
+	[docfile]
+
+SD / key: Parameters for multi-reference alignment
+	[docfile]
+
+SD /1) Do-align (Align images: 1/0)
+	[docfile]
+SD 1,[doalign]
+	[docfile]
+
+SD /2) Incore-yn (Use incore files: 1/0)
+	[docfile]
+SD 2,[incore-yn]
+	[docfile]
+
+SD /3) Pixel size
+	[docfile]
+SD 3,[pxsz]
+	[docfile]
+
+SD /4) Angular step THETA for projections
+	[docfile]
+SD 4,[ang_step]
+	[docfile]
+
+SD /5) Object radius in pixels
+	[docfile]
+SD 5,[obj_radius]
+	[docfile]
+
+SD /6) Translation search range
+	[docfile]
+SD 6,[range]
+	[docfile]
+
+SD /7) Translation step size
+	[docfile]
+SD 7,[step]
+	[docfile]
+
+SD /8) Translation search range for AP REF
+	[docfile]
+SD 8,[range2]
+	[docfile]
+
+SD /9) Diameter of object (Angstroms)
+	[docfile]
+SD 9,[diam]
+	[docfile]
+
+SD /10) First rotation alignment ring
+	[docfile]
+SD 10,[r1]
+	[docfile]
+
+SD /11) Last rotation ring
+	[docfile]
+SD 11,[r2]
+	[docfile]
+
+SD E
+	[docfile]
+EN D
