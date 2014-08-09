@@ -20,11 +20,14 @@ for i in `ls ${DIR_MRCS}/*particles.mrcs`
 do
 	echo -ne "Creating list of particle files...($num out of $tot)\r"
 	numpart=`e2iminfo.py ${i} | grep "MRC format" | awk '{print $11}'`
-
+	[ -z "$numpart" ] && numpart=1 # if mrcs contains 1 particle, $11 is empty
 	echo "${numpart} ${i}" >> list.txt
 	echo -ne "Converting mrcs to SPIDER stack...($num out of $tot)\r"
-
-	`which e2proc2d.py` ${i} unaligned_ptcls.spi --threed2twod &> /dev/null
+	if [ $numpart -eq 1 ];then
+		`which e2proc2d.py` ${i} unaligned_ptcls.spi &> /dev/null
+	else
+		`which e2proc2d.py` ${i} unaligned_ptcls.spi --threed2twod &> /dev/null
+	fi
 	((num++))
 done
 [ $? -eq 0 ] && echo -e "\nDone!"
